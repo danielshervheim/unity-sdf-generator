@@ -44,3 +44,5 @@ The same bunny, with point filtering applied.
 ## Notes
 
 This implementation utilizes compute shaders to speed up the computation process. Unity currently has various bugs related to RenderTextures, Texture3D objects, and Compute shaders. As such, I compute each voxels value and store it in a 1D buffer (rather than the more natural 3D render texture). The buffer is then read back into a Texture3D Object on the CPU, and saved as an asset.
+
+Unity also has bugs with texture formats other than RGBAxxx. I initially planned on using the RFloat texture format to keep the size of the resulting texture down, but Unity is unable to create 3D textures with that format. As such, I store the **normals** of the surface in the RGB channels of the texture, and the **distance** in the Alpha channel. This allows us to get the normals in the pixel shader directly, rather than recalculating them from the distance gradient (although the visual quality is, admittedly, not great).
