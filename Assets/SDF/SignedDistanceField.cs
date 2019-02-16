@@ -88,9 +88,6 @@ public class SignedDistanceField : ScriptableObject {
 		AssetDatabase.AddObjectToAsset(voxels, AssetDatabase.GetAssetPath(this));
 		AssetDatabase.SaveAssets();
 		AssetDatabase.Refresh();
-
-		Debug.Log("this: " + AssetDatabase.GetAssetPath(this));
-		Debug.Log("voxels: " + AssetDatabase.GetAssetPath(voxels));
 	}
 
 	void CreateVoxelTexture() {

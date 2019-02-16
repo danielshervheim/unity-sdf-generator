@@ -37,10 +37,6 @@ float3 PositionFromVoxelId(uint3 id) {
 	pos = pos / ((float)textureSize-1.0);  // 0:1
 	pos = pos * (totalUnitsInTexture);  // 0:meshSize
 	pos = pos - (totalUnitsInTexture/2.0);  // -meshExtent:+meshExtent
-
-	// move pos to the center of the voxel, rather than the corner
-	// pos = pos + (totalUnitsInTexture / ((float)textureSize-0.0));
-
 	return pos;
 }
 
