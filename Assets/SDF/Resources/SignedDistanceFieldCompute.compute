@@ -99,6 +99,7 @@ float3 TrianglePosition(uint triangleId) {
 
 
 
+/* Returns whether a ray intersects a triangle. Developed by Möller–Trumbore. */
 uint RayIntersectsTriangle(float3 o, float3 d, uint triangleId) {
 	const float EPSILON = 0.0000001;
 
