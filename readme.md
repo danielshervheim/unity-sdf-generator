@@ -2,6 +2,8 @@
 
 This tool creates signed distance field volumes (stored as a Texture3D asset) from Mesh objects in Unity.
 
+![gif](https://i.imgur.com/MfO17NV.gif)
+
 Signed distance fields have many uses, such as complex mesh-particle collision detection, soft shadow rendering, subsurface scattering, etc.
 
 ![bunny bilinear](https://i.imgur.com/GXRBKJY.png)
