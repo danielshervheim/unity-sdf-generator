@@ -20,12 +20,12 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _Volume:
-        m_Texture: {fileID: 117660352111303654, guid: fd42b1ac45b64b141be90d46d821fd74,
+        m_Texture: {fileID: 117899431595134232, guid: d33867a60c5e42b4db4ae8e1ab252777,
           type: 2}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     m_Floats:
-    - _Density: 1000
+    - _Density: 0.1
     - _ExtrudeDistance: 0.0054
     - _MaxSteps: 1000
     - _NormalOffset: 0
