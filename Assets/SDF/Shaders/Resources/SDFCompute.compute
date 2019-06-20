@@ -1,0 +1,171 @@
+//
+// Copyright © Daniel Shervheim, 2019
+// www.danielshervheim.com
+//
+
+#define THREAD_GROUPS 10
+
+struct Triangle {
+	float3 a, b, c;
+};
+
+RWTexture3D<float4> voxels;
+int resolution;
+float totalUnitsInTexture;
+
+RWStructuredBuffer<Triangle> triangleBuffer;
+int triangleBufferSize;
+
+int useIntersectionCounter;
+
+
+
+/* Returns the normal of the input triangle. */
+float3 TriangleNormal(uint triangleId) {
+	float3 ba = triangleBuffer[triangleId].b - triangleBuffer[triangleId].a;
+	float3 cb = triangleBuffer[triangleId].c - triangleBuffer[triangleId].b;
+	float3 ac = triangleBuffer[triangleId].a - triangleBuffer[triangleId].c;
+	return normalize(cross(ba, ac));
+}
+
+
+
+/* Returns the position (relative to the triangle buffer) of the voxel id. */
+float3 PositionFromVoxelId(uint3 id) {
+	float3 pos = (float3)id;  // 0:resolution-1
+	pos = pos / ((float)resolution-1.0);  // 0:1
+	pos = pos * (totalUnitsInTexture);  // 0:meshSize
+	pos = pos - (totalUnitsInTexture/2.0);  // -meshExtent:+meshExtent
+	return pos;
+}
+
+
+
+float dot2(float3 v) {
+	return dot(v, v);
+}
+
+
+
+/* Returns the unsigned distance between the input position and triangle. 
+Developed by Inigo Quilez. */
+float DistanceToTriangle(float3 position, uint triangleId) {
+	float3 ba = triangleBuffer[triangleId].b - triangleBuffer[triangleId].a;
+	float3 cb = triangleBuffer[triangleId].c - triangleBuffer[triangleId].b;
+	float3 ac = triangleBuffer[triangleId].a - triangleBuffer[triangleId].c;
+	float3 pa = position - triangleBuffer[triangleId].a;
+	float3 pb = position - triangleBuffer[triangleId].b;
+	float3 pc = position - triangleBuffer[triangleId].c;
+
+	float3 nor = TriangleNormal(triangleId);
+
+	if (sign(dot(cross(ba, nor), pa)) + sign(dot(cross(cb, nor), pb)) + sign(dot(cross(ac, nor), pc)) < 2.0) {
+		float x = dot2(ba * clamp(dot(ba, pa) / dot2(ba), 0.0, 1.0) - pa);
+		float y = dot2(cb * clamp(dot(cb, pb) / dot2(cb), 0.0, 1.0) - pb);
+		float z = dot2(ac * clamp(dot(ac, pc) / dot2(ac), 0.0, 1.0) - pc);
+		return sqrt(min(min(x, y), z));
+	}
+	else {
+		return sqrt(dot(nor, pa)*dot(nor, pa)/dot2(nor));
+	}
+}
+
+
+
+/* Returns the index of the nearest triangle to the input position. */
+uint NearestTriangleId(float3 position) {
+	uint id = 0;
+	for (uint t = 0; t < (uint)triangleBufferSize; t++) {
+		if (DistanceToTriangle(position, t) < DistanceToTriangle(position, id)) {
+			id = t;
+		}
+	}
+	return id;
+}
+
+
+
+/* Returns the average position (center of mass) of the input triangle. */
+float3 TrianglePosition(uint triangleId) {
+	return (triangleBuffer[triangleId].a +
+			triangleBuffer[triangleId].b +
+			triangleBuffer[triangleId].c) / 3.0;
+}
+
+
+
+/* Returns whether a ray intersects a triangle. Developed by Möller–Trumbore. */
+uint RayIntersectsTriangle(float3 o, float3 d, uint triangleId) {
+	const float EPSILON = 0.0000001;
+
+	float3 v0 = triangleBuffer[triangleId].a;
+	float3 v1 = triangleBuffer[triangleId].b;
+	float3 v2 = triangleBuffer[triangleId].c;
+
+	float3 e1, e2, h, s, q;
+	float a, f, u, v, t;
+
+	e1 = v1-v0;
+	e2 = v2-v0;
+
+	h = cross(d, e2);
+	a = dot(e1, h);
+
+	if (abs(a) < EPSILON) {
+		return 0;  // ray is parallel to triangle
+	}
+
+	f = 1.0 / a;
+	s = o - v0;
+	u = f * dot(s, h);
+
+	if (u < 0.0 || u > 1.0) {
+		return 0;
+	}
+
+	q = cross(s, e1);
+	v = f * dot(d, q);
+
+	if (v < 0.0 || u + v > 1.0) {
+		return 0;
+	}
+
+	t = f * dot(e2, q);
+
+	return (t>=0.0) ? 1 : 0;
+}
+
+
+
+uint IntersectionCount(float3 position, float3 direction) {
+	uint count = 0;
+
+	for (uint t = 0; t < (uint)triangleBufferSize; t++) {
+		count += RayIntersectsTriangle(position, direction, t);
+	}
+
+	return count;
+}
+
+
+
+#pragma kernel CSMain
+[numthreads(THREAD_GROUPS, THREAD_GROUPS, THREAD_GROUPS)]
+void CSMain (uint3 id : SV_DispatchThreadID) {
+
+	float3 pos = PositionFromVoxelId(id);
+
+	uint nearestTriangle = NearestTriangleId(pos);
+
+	float distance = DistanceToTriangle(pos, nearestTriangle);
+
+	float s;
+	if (useIntersectionCounter == 1) {
+		s = (IntersectionCount(pos, float3(0, 1, 0))%2==0) ? 1 : -1;
+	}
+	else {
+		s = sign(dot(TriangleNormal(nearestTriangle), TrianglePosition(nearestTriangle) - pos));
+	}
+
+	voxels[id] = float4(TriangleNormal(nearestTriangle), s*distance);
+}
