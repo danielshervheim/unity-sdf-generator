@@ -31,7 +31,7 @@ public class SDF : EditorWindow
     [MenuItem("Signed Distance Field/Generator")]
     static void Window()
     {
-        SDF window = ScriptableObject.CreateInstance(typeof(SDF)) as SDF;
+        SDF window = CreateInstance(typeof(SDF)) as SDF;
         window.ShowUtility();
     }
 
@@ -58,6 +58,10 @@ public class SDF : EditorWindow
 
         // Display warning if the resolution is high enough to potentially cause slow downs.
         if (m_resolution > 256)
+        {
+            EditorGUILayout.HelpBox("Computing the SDF at this resolution is not recommended.", MessageType.Error);
+        }
+        else if (m_resolution > 128)
         {
             EditorGUILayout.HelpBox("Computing the SDF at this resolution may be slow. Consider using a lower resolution.", MessageType.Warning);
         }
@@ -129,21 +133,14 @@ public class SDF : EditorWindow
 
     private Texture3D ComputeSDF()
     {
-        // Create the Texture3D to hold the pixels.
-        Texture3D tex = new Texture3D(m_resolution, m_resolution, m_resolution, TextureFormat.RGBAFloat, false);
-
-        // Instantiate the compute shader and get the kernel handle.
-        ComputeShader compute = Resources.Load("SDFCompute") as ComputeShader;
-        int kernel = compute.FindKernel("CSMain");
-
-        // Creathe the pixel buffer to load the pixels into on the GPU.
-        Color[] pixelArray = tex.GetPixels(0);
-        ComputeBuffer pixelBuffer = new ComputeBuffer(pixelArray.Length, 16);  // 4*sizeof(float)
+        // Create the voxel texture and get an array of pixels from it.
+        Texture3D voxels = new Texture3D(m_resolution, m_resolution, m_resolution, TextureFormat.RGBAHalf, false);
+        voxels.anisoLevel = 1;
+        voxels.filterMode = FilterMode.Bilinear;
+        voxels.wrapMode = TextureWrapMode.Clamp;
+        Color[] pixelArray = voxels.GetPixels(0);
+        ComputeBuffer pixelBuffer = new ComputeBuffer(pixelArray.Length, sizeof(float) * 4);
         pixelBuffer.SetData(pixelArray);
-
-        // Upload the pixel buffer to the GPU.
-        compute.SetBuffer(kernel, "pixelBuffer", pixelBuffer);
-        compute.SetInt("pixelBufferSize", pixelArray.Length);
 
         // Create the triangle array and buffer from the mesh.
         Vector3[] meshVertices = m_mesh.vertices;
@@ -155,14 +152,22 @@ public class SDF : EditorWindow
             triangleArray[t].b = meshVertices[meshTriangles[3 * t + 1]] - m_mesh.bounds.center;
             triangleArray[t].c = meshVertices[meshTriangles[3 * t + 2]] - m_mesh.bounds.center;
         }
-        ComputeBuffer triangleBuffer = new ComputeBuffer(triangleArray.Length, 36);  // 3*3*sizeof(float)
+        ComputeBuffer triangleBuffer = new ComputeBuffer(triangleArray.Length, sizeof(float) * 3 * 3);
         triangleBuffer.SetData(triangleArray);
+
+        // Instantiate the compute shader from resources.
+        ComputeShader compute = (ComputeShader)Instantiate(Resources.Load("SDFCompute"));
+        int kernel = compute.FindKernel("CSMain");
+
+        // Upload the pixel buffer to the GPU.
+        compute.SetBuffer(kernel, "pixelBuffer", pixelBuffer);
+        compute.SetInt("pixelBufferSize", pixelArray.Length);
 
         // Upload the triangle buffer to the GPU.
         compute.SetBuffer(kernel, "triangleBuffer", triangleBuffer);
         compute.SetInt("triangleBufferSize", triangleArray.Length);
 
-        // Calculate and upload the other necessary parameters to the GPU.
+        // Calculate and upload the other necessary parameters.
         float maxMeshSize = Mathf.Max(Mathf.Max(m_mesh.bounds.size.x, m_mesh.bounds.size.y), m_mesh.bounds.size.z);
         float totalUnitsInTexture = maxMeshSize + 2.0f * m_padding;
         compute.SetInt("textureSize", m_resolution);
@@ -170,138 +175,19 @@ public class SDF : EditorWindow
         compute.SetInt("useIntersectionCounter", (m_signComputationMethod == SignComputationMethod.IntersectionCounter) ? 1 : 0);
 
         // Compute the SDF.
-        compute.Dispatch(kernel, pixelArray.Length / 1024 + 1, 1, 1);
+        compute.Dispatch(kernel, pixelArray.Length / 256 + 1, 1, 1);
 
-        // Release the triangle buffer.
+        // Destroy the compute shader and release the triangle buffer.
+        DestroyImmediate(compute);
         triangleBuffer.Release();
 
-        // Retrieve the pixel buffer and reapply it to the Texture3D.
+        // Retrieve the pixel buffer and reapply it to the voxels texture.
         pixelBuffer.GetData(pixelArray);
         pixelBuffer.Release();
-        tex.SetPixels(pixelArray, 0);
-        tex.Apply();
+        voxels.SetPixels(pixelArray, 0);
+        voxels.Apply();
 
-        // Return the Texture3D.
-        return tex;
+        // Return the voxels texture.
+        return voxels;
     }
 }
-
-
-
-/*
-[CreateAssetMenu(fileName = "New SDF", menuName = "Signed Distance Field")]
-public class SignedDistanceField : ScriptableObject {
-
-	public enum SignComputationMethod {IntersectionCounter, DotProduct};
-
-    public Mesh mesh;
-	public int subMeshIndex = 0;
-	[Range(0f, 1f)] public float padding;
-	[Range(0, 128)] public int textureSize = 32;
-	public SignComputationMethod signComputationMethod = SignComputationMethod.IntersectionCounter;
-
-	private Texture3D voxels;
-
-
-	// triangle buffer data
-	private struct Triangle {
-		public Vector3 a;
-		public Vector3 b;
-		public Vector3 c;
-	}
-	private const int TRIANGLE_SIZE = 36;  // 3*3*sizeof(float)
-
-    public void Bake() {
-    	DestroyVoxelTexture();
-
-		// stop if the mesh is not assigned
-		if (mesh == null) {
-			return;
-		}
-	
-		// create the voxel texture and get an array of pixels
-		CreateVoxelTexture();
-		Color[] pixelArray = voxels.GetPixels(0);
-		ComputeBuffer pixelBuffer = new ComputeBuffer(pixelArray.Length, sizeof(float)*4);//System.Runtime.InteropServices.Marshal.SizeOf(pixelArray[0]));
-		pixelBuffer.SetData(pixelArray);
-
-		// create the triangle array and buffer from the mesh
-		Vector3[] meshVertices = mesh.vertices;
-		int[] meshTriangles = mesh.GetTriangles(subMeshIndex);
-		Triangle[] triangleArray = new Triangle[meshTriangles.Length/3];
-		for (int t = 0; t < triangleArray.Length; t++) {
-			triangleArray[t].a = meshVertices[meshTriangles[3*t+0]] - mesh.bounds.center;
-			triangleArray[t].b = meshVertices[meshTriangles[3*t+1]] - mesh.bounds.center;
-			triangleArray[t].c = meshVertices[meshTriangles[3*t+2]] - mesh.bounds.center;
-		}
-		ComputeBuffer triangleBuffer = new ComputeBuffer(triangleArray.Length, TRIANGLE_SIZE);
-		triangleBuffer.SetData(triangleArray);
-
-		// instantiate the compute shader
-		ComputeShader compute = (ComputeShader)Instantiate(Resources.Load("SignedDistanceFieldCompute"));
-		int kernel = compute.FindKernel("CSMain");
-
-		// upload the pixel buffer to the gpu
-		compute.SetBuffer(kernel, "pixelBuffer", pixelBuffer);
-		compute.SetInt("pixelBufferSize", pixelArray.Length);
-
-		// upload the triangle buffer to the gpu
-		compute.SetBuffer(kernel, "triangleBuffer", triangleBuffer);
-		compute.SetInt("triangleBufferSize", triangleArray.Length);
-
-		// set the other necessary parameters
-		float maxMeshSize = Mathf.Max(Mathf.Max(mesh.bounds.size.x, mesh.bounds.size.y), mesh.bounds.size.z);
-		float totalUnitsInTexture = maxMeshSize + 2.0f*padding;
-		// float unitsPerVoxel = totalUnitsInTexture / (float)textureSize;
-
-		compute.SetInt("textureSize", textureSize);  // pixelBufferSize/3
-		compute.SetFloat("totalUnitsInTexture", totalUnitsInTexture);
-		compute.SetInt("useIntersectionCounter", (signComputationMethod==SignComputationMethod.IntersectionCounter)?1:0);
-
-		// compute the sdf
-		compute.Dispatch(kernel, pixelArray.Length/256 + 1, 1, 1);
-
-		// destroy the compute shader and release the triangle buffer
-		DestroyImmediate(compute);
-		triangleBuffer.Release();
-
-		// retrieve the pixel buffer and reapply it to the texture3d
-		pixelBuffer.GetData(pixelArray);
-		pixelBuffer.Release();
-		voxels.SetPixels(pixelArray, 0);
-		voxels.Apply();
-
-		// save the texture3d as asset
-		AssetDatabase.AddObjectToAsset(voxels, AssetDatabase.GetAssetPath(this));
-		AssetDatabase.SaveAssets();
-		AssetDatabase.Refresh();
-	}
-
-	void CreateVoxelTexture() {
-		if (voxels != null) {
-			DestroyVoxelTexture();
-		}
-
-		voxels = new Texture3D(textureSize, textureSize, textureSize, TextureFormat.RGBAHalf, false);
-		voxels.name = mesh.name + "_SDF_Texture3D";
-		voxels.anisoLevel = 1;
-		voxels.filterMode = FilterMode.Bilinear;
-		voxels.wrapMode = TextureWrapMode.Clamp;
-	}
-
-	void DestroyVoxelTexture() {
-		if (voxels != null) {
-			if (AssetDatabase.Contains(voxels)) {
-				AssetDatabase.RemoveObjectFromAsset(voxels);
-				voxels = null;
-				AssetDatabase.SaveAssets();
-				AssetDatabase.Refresh();
-			}
-		}
-	}
-
-	public Texture3D GetTexture() {
-		return voxels;
-	}
-}
-*/
