@@ -1,50 +1,44 @@
 # Signed Distance Field Generator
 
-This tool creates signed distance field volumes (stored as a Texture3D asset) from Mesh objects in Unity.
+A Unity tool to generate signed distance field volumes (as `Texture3D` assets) from meshes.
 
-![gif](https://i.imgur.com/MfO17NV.gif)
+![demo](https://imgur.com/nHyQgX9.gif)
 
-Signed distance fields have many uses, such as complex mesh-particle collision detection, soft shadow rendering, subsurface scattering, etc.
+## To Install
 
-![bunny bilinear](https://i.imgur.com/GXRBKJY.png)
+Download the [.unitypackage](https://drive.google.com/open?id=1VSZVbA1APnVCfzLOD7rTFkkC7wkFXd5F), or clone this repository.
 
-The [Stanford bunny](https://sketchfab.com/3d-models/bunny-4cc18d8e0552459b8897948b81cb20ad) rendered from a 64x64x64 texture with half precision, and bilinear filtering.
+Tested on Unity 2018.4, should work on earlier and later versions as well. Requires a GPU that supports Compute shaders.
 
-![bunny point](https://i.imgur.com/lSGj6tp.png)
+## To Use
 
-The same bunny, with point filtering applied.
+1. Select `Signed Distance Field > Generator` from the Unity menu bar, the tool window will pop up.
+2. Press `Create` and a save dialog will pop up.
+3. Choose a location and name to save your SDF as.
 
-## How to install
+## Options
 
-1. Create a new Unity project (version 2018.3 or greater).
-2. Clone this repository.
-3. Replace the new projects `Asset` folder with the one from the cloned repository.
+__Mesh__: the mesh you want to make an SDF from.
 
-## How to create an SDF 
+__Resolution__: the resulting `Texture3D` resolution (I recommend you keep this below 64).
 
-1. Right click anywhere in the Asset browser and select `Create > Signed Distance Field` from the popup menu.
-2. Select the newly created SDF asset and assign its `Mesh` property.
-3. If the mesh is composed of more than one submesh, select the `index` of the submesh you want to use. (This can usually be left at 0).
-4. Adjust the `padding` settings (in Unity units) to surround the object within the generated texture.
-5. Select the `texture size` (64 usually yields a good mix of size and clarity).
-6. Select the sign computation method (Only select `Dot Product` if `Intersection Counter` yields artefacts).
-7. Press `Bake`.
+__Submesh Index__: for multi-part meshes, the index of the submesh you want to use.
 
-## How to visualize
+__Padding__: the padding to surround your mesh within the SDF (only set this to be non-zero if you see artifacts).
+
+__Method__: the method used to determine the sign of each voxel (only use `DotProduct` if `IntersectionCounter` yields artifacts).
+
+## To Visualize
+
+I also included a simple raymarching shader to visualize the resulting SDFs.
 
 1. Drag a cube primitive into the scene, and set its `Transform` position to (0, 0, 0).
-2. Create a new `Material` and select `SignedDistanceFieldVisualizer` as the shader.
-3. Drag a `Texture3D` asset from within a `SignedDistanceField` instance into the `Volume` slot of the material.
+2. Change its material to `SDF > Materials > SignedDistanceField_Visualizer`.
+3. Drag one of your created SDF assets into the `Volume` slot of the material.
 4. Adjust the other material parameters as necessary.
 
-`Render As Solid` renders the SDF as a solid object with a simple Lambertian shading model.
+__Render As Solid__: renders the SDF as a solid object with a simple Lambertian shading model.
 
-`Density` adjusts the density of the solid when `Render As Solid` is turned off.
+__Density__: adjusts the density of the solid when `Render As Solid` is turned off.
 
-`Maximum Steps` sets the number of steps taken when raytracing through the volume. Setting this requires some trial and error. Too small and detail is lost as sample positions are missed when tracing. Too big and performance suffers.
-
-## Notes
-
-This implementation utilizes compute shaders to speed up the computation process. Unity currently has various bugs related to RenderTextures, Texture3D objects, and Compute shaders. As such, I compute each voxels value and store it in a 1D buffer (rather than the more natural 3D render texture). The buffer is then read back into a Texture3D Object on the CPU, and saved as an asset.
-
-Unity also has bugs with texture formats other than RGBAxxx. I initially planned on using the RFloat texture format to keep the size of the resulting texture down, but Unity is unable to create 3D textures with that format. As such, I store the **normals** of the surface in the RGB channels of the texture, and the **distance** in the Alpha channel. This allows us to get the normals in the pixel shader directly, rather than recalculating them from the distance gradient (although the visual quality is, admittedly, not great).
+__Maximum Steps__: sets the number of steps taken when raytracing through the volume. Setting this requires some trial and error. Too small and detail is lost as sample positions are missed when tracing. Too big and performance suffers.
