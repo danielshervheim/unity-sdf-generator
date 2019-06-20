@@ -110,14 +110,10 @@ public class SDF : EditorWindow
             return;
         }
 
-        // Get the RenderTexture representation of the SDF.
-        RenderTexture voxelsRT = ComputeSDF();
+        // Get the Texture3D representation of the SDF.
+        Texture3D voxels = ComputeSDF();
 
-        // Convert the RenderTexture to a Texture3D to be saved as an asset.
-        Texture3D voxels = new Texture3D(m_resolution, m_resolution, m_resolution, TextureFormat.RGBAFloat, false);
-        Graphics.CopyTexture(voxelsRT, voxels);
-
-        // Save the voxels to texture3d asset at path.
+        // Save the Texture3D asset at path.
         AssetDatabase.CreateAsset(voxels, path);
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
@@ -131,17 +127,23 @@ public class SDF : EditorWindow
 
 
 
-    private RenderTexture ComputeSDF()
+    private Texture3D ComputeSDF()
     {
-        RenderTexture voxels = new RenderTexture(m_resolution, m_resolution, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
-        voxels.dimension = UnityEngine.Rendering.TextureDimension.Tex3D;
-        voxels.volumeDepth = m_resolution;
-        voxels.enableRandomWrite = true;
-        voxels.Create();
+        // Create the Texture3D to hold the pixels.
+        Texture3D tex = new Texture3D(m_resolution, m_resolution, m_resolution, TextureFormat.RGBAFloat, false);
 
-        // Get the compute shader instance.
+        // Instantiate the compute shader and get the kernel handle.
         ComputeShader compute = Resources.Load("SDFCompute") as ComputeShader;
-        int computeHandle = compute.FindKernel("CSMain");
+        int kernel = compute.FindKernel("CSMain");
+
+        // Creathe the pixel buffer to load the pixels into on the GPU.
+        Color[] pixelArray = tex.GetPixels(0);
+        ComputeBuffer pixelBuffer = new ComputeBuffer(pixelArray.Length, 16);  // 4*sizeof(float)
+        pixelBuffer.SetData(pixelArray);
+
+        // Upload the pixel buffer to the GPU.
+        compute.SetBuffer(kernel, "pixelBuffer", pixelBuffer);
+        compute.SetInt("pixelBufferSize", pixelArray.Length);
 
         // Create the triangle array and buffer from the mesh.
         Vector3[] meshVertices = m_mesh.vertices;
@@ -156,28 +158,31 @@ public class SDF : EditorWindow
         ComputeBuffer triangleBuffer = new ComputeBuffer(triangleArray.Length, 36);  // 3*3*sizeof(float)
         triangleBuffer.SetData(triangleArray);
 
-        // Upload the RenderTexture and info to the gpu.
-        compute.SetTexture(computeHandle, "voxels", voxels);
-        compute.SetInt("resolution", m_resolution);
-
-        // Upload the triangle buffer to the gpu.
-        compute.SetBuffer(computeHandle, "triangleBuffer", triangleBuffer);
+        // Upload the triangle buffer to the GPU.
+        compute.SetBuffer(kernel, "triangleBuffer", triangleBuffer);
         compute.SetInt("triangleBufferSize", triangleArray.Length);
 
-        // Set the other necessary parameters.
+        // Calculate and upload the other necessary parameters to the GPU.
         float maxMeshSize = Mathf.Max(Mathf.Max(m_mesh.bounds.size.x, m_mesh.bounds.size.y), m_mesh.bounds.size.z);
         float totalUnitsInTexture = maxMeshSize + 2.0f * m_padding;
+        compute.SetInt("textureSize", m_resolution);
         compute.SetFloat("totalUnitsInTexture", totalUnitsInTexture);
         compute.SetInt("useIntersectionCounter", (m_signComputationMethod == SignComputationMethod.IntersectionCounter) ? 1 : 0);
 
-        // Compute the sdf.
-        int groups = m_resolution / 10 + 1;
-        compute.Dispatch(computeHandle, groups, groups, groups);
+        // Compute the SDF.
+        compute.Dispatch(kernel, pixelArray.Length / 1024 + 1, 1, 1);
 
         // Release the triangle buffer.
         triangleBuffer.Release();
 
-        return voxels;
+        // Retrieve the pixel buffer and reapply it to the Texture3D.
+        pixelBuffer.GetData(pixelArray);
+        pixelBuffer.Release();
+        tex.SetPixels(pixelArray, 0);
+        tex.Apply();
+
+        // Return the Texture3D.
+        return tex;
     }
 }
 

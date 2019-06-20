@@ -3,14 +3,15 @@
 // www.danielshervheim.com
 //
 
-#define THREAD_GROUPS 10
+#pragma kernel CSMain
 
 struct Triangle {
 	float3 a, b, c;
 };
 
-RWTexture3D<float4> voxels;
-int resolution;
+RWStructuredBuffer<float4> pixelBuffer;
+int pixelBufferSize;
+int textureSize;
 float totalUnitsInTexture;
 
 RWStructuredBuffer<Triangle> triangleBuffer;
@@ -32,10 +33,10 @@ float3 TriangleNormal(uint triangleId) {
 
 /* Returns the position (relative to the triangle buffer) of the voxel id. */
 float3 PositionFromVoxelId(uint3 id) {
-	float3 pos = (float3)id;  // 0:resolution-1
-	pos = pos / ((float)resolution-1.0);  // 0:1
+	float3 pos = (float3)id;  // 0:textureSize-1
+	pos = pos / ((float)textureSize - 1.0);  // 0:1
 	pos = pos * (totalUnitsInTexture);  // 0:meshSize
-	pos = pos - (totalUnitsInTexture/2.0);  // -meshExtent:+meshExtent
+	pos = pos - (totalUnitsInTexture / 2.0);  // -meshExtent:+meshExtent
 	return pos;
 }
 
@@ -47,7 +48,7 @@ float dot2(float3 v) {
 
 
 
-/* Returns the unsigned distance between the input position and triangle. 
+/* Returns the unsigned distance between the input position and triangle.
 Developed by Inigo Quilez. */
 float DistanceToTriangle(float3 position, uint triangleId) {
 	float3 ba = triangleBuffer[triangleId].b - triangleBuffer[triangleId].a;
@@ -66,7 +67,7 @@ float DistanceToTriangle(float3 position, uint triangleId) {
 		return sqrt(min(min(x, y), z));
 	}
 	else {
-		return sqrt(dot(nor, pa)*dot(nor, pa)/dot2(nor));
+		return sqrt(dot(nor, pa)*dot(nor, pa) / dot2(nor));
 	}
 }
 
@@ -88,8 +89,8 @@ uint NearestTriangleId(float3 position) {
 /* Returns the average position (center of mass) of the input triangle. */
 float3 TrianglePosition(uint triangleId) {
 	return (triangleBuffer[triangleId].a +
-			triangleBuffer[triangleId].b +
-			triangleBuffer[triangleId].c) / 3.0;
+		triangleBuffer[triangleId].b +
+		triangleBuffer[triangleId].c) / 3.0;
 }
 
 
@@ -105,8 +106,8 @@ uint RayIntersectsTriangle(float3 o, float3 d, uint triangleId) {
 	float3 e1, e2, h, s, q;
 	float a, f, u, v, t;
 
-	e1 = v1-v0;
-	e2 = v2-v0;
+	e1 = v1 - v0;
+	e2 = v2 - v0;
 
 	h = cross(d, e2);
 	a = dot(e1, h);
@@ -132,7 +133,7 @@ uint RayIntersectsTriangle(float3 o, float3 d, uint triangleId) {
 
 	t = f * dot(e2, q);
 
-	return (t>=0.0) ? 1 : 0;
+	return (t >= 0.0) ? 1 : 0;
 }
 
 
@@ -149,11 +150,21 @@ uint IntersectionCount(float3 position, float3 direction) {
 
 
 
-#pragma kernel CSMain
-[numthreads(THREAD_GROUPS, THREAD_GROUPS, THREAD_GROUPS)]
-void CSMain (uint3 id : SV_DispatchThreadID) {
+uint3 To3D(uint id) {
+	uint xQ = id / textureSize;
+	uint x = id % textureSize;
+	uint yQ = xQ / textureSize;
+	uint y = xQ % textureSize;
+	uint z = yQ % textureSize;
+	return uint3(x, y, z);
+}
 
-	float3 pos = PositionFromVoxelId(id);
+
+
+[numthreads(256, 1, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID) {
+
+	float3 pos = PositionFromVoxelId(To3D(id.x));
 
 	uint nearestTriangle = NearestTriangleId(pos);
 
@@ -161,11 +172,11 @@ void CSMain (uint3 id : SV_DispatchThreadID) {
 
 	float s;
 	if (useIntersectionCounter == 1) {
-		s = (IntersectionCount(pos, float3(0, 1, 0))%2==0) ? 1 : -1;
+		s = (IntersectionCount(pos, float3(0, 1, 0)) % 2 == 0) ? 1 : -1;
 	}
 	else {
 		s = sign(dot(TriangleNormal(nearestTriangle), TrianglePosition(nearestTriangle) - pos));
 	}
 
-	voxels[id] = float4(TriangleNormal(nearestTriangle), s*distance);
+	pixelBuffer[id.x] = float4(TriangleNormal(nearestTriangle), s*distance);
 }

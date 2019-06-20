@@ -9,7 +9,7 @@ Material:
   m_PrefabAsset: {fileID: 0}
   m_Name: SignedDistanceField_Visualizer
   m_Shader: {fileID: 4800000, guid: a2649225d2c625b4e98a0d3950a29a7e, type: 3}
-  m_ShaderKeywords: 
+  m_ShaderKeywords: _SHADE_ON
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
@@ -20,13 +20,13 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _Volume:
-        m_Texture: {fileID: 11700000, guid: d4f25c8ac429a004b86304549ca9485e, type: 2}
+        m_Texture: {fileID: 11700000, guid: 0a3d276bc226a574a99a03f9c23ddfa8, type: 2}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     m_Floats:
-    - _Density: 0.01
+    - _Density: 0.1
     - _ExtrudeDistance: 0.0054
-    - _MaxSteps: 1000
+    - _MaxSteps: 200
     - _NormalOffset: 0
-    - _Shade: 0
+    - _Shade: 1
     m_Colors: []
