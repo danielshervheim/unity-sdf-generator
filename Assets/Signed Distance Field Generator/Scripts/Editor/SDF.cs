@@ -8,15 +8,10 @@ using UnityEditor;
 
 public class SDF : EditorWindow
 {
-    Mesh m_mesh;
-    int m_resolution = 32;
-
-    bool m_showAdvanced = false;
-
-    int m_submeshIndex = 0;
-    float m_padding = 0f;
-    enum SignComputationMethod {IntersectionCounter, DotProduct};
-    SignComputationMethod m_signComputationMethod = SignComputationMethod.IntersectionCounter;
+    Mesh mesh;
+    int subMeshIndex = 0;
+    float padding = 0f;
+    int resolution = 32;
 
     // For triangle buffer.
     private struct Triangle
@@ -26,16 +21,12 @@ public class SDF : EditorWindow
         public Vector3 c;
     }
 
-
-
-    [MenuItem("Signed Distance Field/Generator")]
+    [MenuItem("Signed Distance Field/Generate")]
     static void Window()
     {
         SDF window = CreateInstance(typeof(SDF)) as SDF;
         window.ShowUtility();
     }
-
-
 
     private void OnGUI()
     {
@@ -43,7 +34,7 @@ public class SDF : EditorWindow
         if (!SystemInfo.supportsComputeShaders)
         {
             EditorGUILayout.HelpBox("This tool requires a GPU that supports compute shaders.", MessageType.Error);
-
+            
             if (GUILayout.Button("Close"))
             {
                 Close();
@@ -52,61 +43,52 @@ public class SDF : EditorWindow
             return;
         }
 
-        // Draw the GUI options.
-        m_mesh = EditorGUILayout.ObjectField("Mesh", m_mesh, typeof(Mesh), false) as Mesh;
-        m_resolution = (int)Mathf.Max(EditorGUILayout.IntField("Resolution", m_resolution), 1f);
+        // Assign the mesh.
+        mesh = EditorGUILayout.ObjectField("Mesh", mesh, typeof(Mesh), false) as Mesh;
 
-        // Display warning if the resolution is high enough to potentially cause slow downs.
-        if (m_resolution > 256)
+        // If the mesh is null, don't draw the rest of the GUI.
+        if (mesh == null)
         {
-            EditorGUILayout.HelpBox("Computing the SDF at this resolution is not recommended.", MessageType.Error);
-        }
-        else if (m_resolution > 128)
-        {
-            EditorGUILayout.HelpBox("Computing the SDF at this resolution may be slow. Consider using a lower resolution.", MessageType.Warning);
-        }
+            if (GUILayout.Button("Close"))
+            {
+                Close();
+            }
 
-        m_showAdvanced = EditorGUILayout.Foldout(m_showAdvanced, "Advanced");
-        if (m_showAdvanced)
+            return;
+        }
+        
+        // Assign the sub-mesh index, if there are more than 1 in the mesh.
+        if (mesh.subMeshCount > 1)
         {
-            m_submeshIndex = (int)Mathf.Max(EditorGUILayout.IntField("Submesh Index", m_submeshIndex), 0f);
-            m_padding = EditorGUILayout.Slider("Padding", m_padding, 0f, 1f);
-            m_signComputationMethod = (SignComputationMethod)EditorGUILayout.EnumPopup("Method", m_signComputationMethod);
+            subMeshIndex = (int)Mathf.Max(EditorGUILayout.IntField("Submesh Index", subMeshIndex), 0f);
         }
 
-        // Create the SDF if the mesh has been assigned.
-        if (m_mesh == null)
-        {
-            GUI.enabled = false;
-        }
+        // Assign the padding around the mesh.
+        padding = EditorGUILayout.Slider("Padding", padding, 0f, 1f);
+
+        // Assign the SDF resolution.
+        resolution = (int)Mathf.Max(EditorGUILayout.IntField("Resolution", resolution), 1f);
 
         if (GUILayout.Button("Create"))
         {
             CreateSDF();
         }
-
-        GUI.enabled = true;
         
-        // Cancel.
         if (GUILayout.Button("Close"))
         {
             Close();
         }
     }
 
-
-
     private void OnInspectorUpdate()
     {
         Repaint();
     }
 
-
-
     private void CreateSDF()
     {
         // Prompt the user to save the file.
-        string path = EditorUtility.SaveFilePanelInProject("Save As", m_mesh.name + "_SDF", "asset", "");
+        string path = EditorUtility.SaveFilePanelInProject("Save As", mesh.name + "_SDF", "asset", "");
 
         // ... If they hit cancel.
         if (path == null || path.Equals(""))
@@ -129,34 +111,37 @@ public class SDF : EditorWindow
         Selection.activeObject = AssetDatabase.LoadMainAssetAtPath(path);
     }
 
-
-
     private Texture3D ComputeSDF()
     {
-        // Create the voxel texture and get an array of pixels from it.
-        Texture3D voxels = new Texture3D(m_resolution, m_resolution, m_resolution, TextureFormat.RGBAHalf, false);
+        // Create the voxel texture.
+        Texture3D voxels = new Texture3D(resolution, resolution, resolution, TextureFormat.RGBAHalf, false);
         voxels.anisoLevel = 1;
         voxels.filterMode = FilterMode.Bilinear;
         voxels.wrapMode = TextureWrapMode.Clamp;
+        
+        // Get an array of pixels from the voxel texture, create a buffer to
+        // hold them, and upload the pixels to the buffer.
         Color[] pixelArray = voxels.GetPixels(0);
         ComputeBuffer pixelBuffer = new ComputeBuffer(pixelArray.Length, sizeof(float) * 4);
         pixelBuffer.SetData(pixelArray);
 
-        // Create the triangle array and buffer from the mesh.
-        Vector3[] meshVertices = m_mesh.vertices;
-        int[] meshTriangles = m_mesh.GetTriangles(m_submeshIndex);
+        // Get an array of triangles from the mesh.
+        Vector3[] meshVertices = mesh.vertices;
+        int[] meshTriangles = mesh.GetTriangles(subMeshIndex);
         Triangle[] triangleArray = new Triangle[meshTriangles.Length / 3];
         for (int t = 0; t < triangleArray.Length; t++)
         {
-            triangleArray[t].a = meshVertices[meshTriangles[3 * t + 0]] - m_mesh.bounds.center;
-            triangleArray[t].b = meshVertices[meshTriangles[3 * t + 1]] - m_mesh.bounds.center;
-            triangleArray[t].c = meshVertices[meshTriangles[3 * t + 2]] - m_mesh.bounds.center;
+            triangleArray[t].a = meshVertices[meshTriangles[3 * t + 0]] - mesh.bounds.center;
+            triangleArray[t].b = meshVertices[meshTriangles[3 * t + 1]] - mesh.bounds.center;
+            triangleArray[t].c = meshVertices[meshTriangles[3 * t + 2]] - mesh.bounds.center;
         }
+
+        // Create a buffer to hold the triangles, and upload them to the buffer.
         ComputeBuffer triangleBuffer = new ComputeBuffer(triangleArray.Length, sizeof(float) * 3 * 3);
         triangleBuffer.SetData(triangleArray);
 
         // Instantiate the compute shader from resources.
-        ComputeShader compute = (ComputeShader)Instantiate(Resources.Load("SDFCompute"));
+        ComputeShader compute = (ComputeShader)Instantiate(Resources.Load("SDF"));
         int kernel = compute.FindKernel("CSMain");
 
         // Upload the pixel buffer to the GPU.
@@ -168,11 +153,10 @@ public class SDF : EditorWindow
         compute.SetInt("triangleBufferSize", triangleArray.Length);
 
         // Calculate and upload the other necessary parameters.
-        float maxMeshSize = Mathf.Max(Mathf.Max(m_mesh.bounds.size.x, m_mesh.bounds.size.y), m_mesh.bounds.size.z);
-        float totalUnitsInTexture = maxMeshSize + 2.0f * m_padding;
-        compute.SetInt("textureSize", m_resolution);
+        float maxMeshSize = Mathf.Max(Mathf.Max(mesh.bounds.size.x, mesh.bounds.size.y), mesh.bounds.size.z);
+        float totalUnitsInTexture = maxMeshSize + 2.0f * padding;
+        compute.SetInt("textureSize", resolution);
         compute.SetFloat("totalUnitsInTexture", totalUnitsInTexture);
-        compute.SetInt("useIntersectionCounter", (m_signComputationMethod == SignComputationMethod.IntersectionCounter) ? 1 : 0);
 
         // Compute the SDF.
         compute.Dispatch(kernel, pixelArray.Length / 256 + 1, 1, 1);

@@ -26,7 +26,7 @@ Material:
     m_Floats:
     - _Density: 0.1
     - _ExtrudeDistance: 0.0054
-    - _MaxSteps: 200
+    - _MaxSteps: 128
     - _NormalOffset: 0
     - _Shade: 1
     m_Colors: []

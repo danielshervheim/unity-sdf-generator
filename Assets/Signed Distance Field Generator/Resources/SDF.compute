@@ -17,8 +17,6 @@ float totalUnitsInTexture;
 RWStructuredBuffer<Triangle> triangleBuffer;
 int triangleBufferSize;
 
-int useIntersectionCounter;
-
 
 
 /* Returns the normal of the input triangle. */
@@ -170,13 +168,7 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
 
 	float distance = DistanceToTriangle(pos, nearestTriangle);
 
-	float s;
-	if (useIntersectionCounter == 1) {
-		s = (IntersectionCount(pos, float3(0, 1, 0)) % 2 == 0) ? 1 : -1;
-	}
-	else {
-		s = sign(dot(TriangleNormal(nearestTriangle), TrianglePosition(nearestTriangle) - pos));
-	}
+	float s = (IntersectionCount(pos, float3(0, 1, 0)) % 2 == 0) ? 1 : -1;
 
 	pixelBuffer[id.x] = float4(TriangleNormal(nearestTriangle), s*distance);
 }
