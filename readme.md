@@ -6,7 +6,7 @@ A Unity tool to generate signed distance field volumes (as `Texture3D` assets) f
 
 ## To Install
 
-Download the [.unitypackage](https://drive.google.com/open?id=1VSZVbA1APnVCfzLOD7rTFkkC7wkFXd5F), or clone this repository.
+Download the [.unitypackage](https://github.com/danielshervheim/Signed-Distance-Field-Generator/releases/download/1.0/sdf_generator_1.0.unitypackage), or clone this repository.
 
 Tested on Unity 2018.4, should work on earlier and later versions as well. Requires a GPU that supports Compute shaders.
 
