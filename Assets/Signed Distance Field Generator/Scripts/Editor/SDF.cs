@@ -34,7 +34,7 @@ public class SDF : EditorWindow
         if (!SystemInfo.supportsComputeShaders)
         {
             EditorGUILayout.HelpBox("This tool requires a GPU that supports compute shaders.", MessageType.Error);
-            
+
             if (GUILayout.Button("Close"))
             {
                 Close();
@@ -56,7 +56,7 @@ public class SDF : EditorWindow
 
             return;
         }
-        
+
         // Assign the sub-mesh index, if there are more than 1 in the mesh.
         if (mesh.subMeshCount > 1)
         {
@@ -73,7 +73,7 @@ public class SDF : EditorWindow
         {
             CreateSDF();
         }
-        
+
         if (GUILayout.Button("Close"))
         {
             Close();
@@ -118,7 +118,7 @@ public class SDF : EditorWindow
         voxels.anisoLevel = 1;
         voxels.filterMode = FilterMode.Bilinear;
         voxels.wrapMode = TextureWrapMode.Clamp;
-        
+
         // Get an array of pixels from the voxel texture, create a buffer to
         // hold them, and upload the pixels to the buffer.
         Color[] pixelArray = voxels.GetPixels(0);
@@ -131,9 +131,9 @@ public class SDF : EditorWindow
         Triangle[] triangleArray = new Triangle[meshTriangles.Length / 3];
         for (int t = 0; t < triangleArray.Length; t++)
         {
-            triangleArray[t].a = meshVertices[meshTriangles[3 * t + 0]] - mesh.bounds.center;
-            triangleArray[t].b = meshVertices[meshTriangles[3 * t + 1]] - mesh.bounds.center;
-            triangleArray[t].c = meshVertices[meshTriangles[3 * t + 2]] - mesh.bounds.center;
+            triangleArray[t].a = meshVertices[meshTriangles[3 * t + 0]];  // - mesh.bounds.center;
+            triangleArray[t].b = meshVertices[meshTriangles[3 * t + 1]];  // - mesh.bounds.center;
+            triangleArray[t].c = meshVertices[meshTriangles[3 * t + 2]];  // - mesh.bounds.center;
         }
 
         // Create a buffer to hold the triangles, and upload them to the buffer.
@@ -153,10 +153,17 @@ public class SDF : EditorWindow
         compute.SetInt("triangleBufferSize", triangleArray.Length);
 
         // Calculate and upload the other necessary parameters.
-        float maxMeshSize = Mathf.Max(Mathf.Max(mesh.bounds.size.x, mesh.bounds.size.y), mesh.bounds.size.z);
-        float totalUnitsInTexture = maxMeshSize + 2.0f * padding;
         compute.SetInt("textureSize", resolution);
-        compute.SetFloat("totalUnitsInTexture", totalUnitsInTexture);
+        Vector3 minExtents = Vector3.zero;
+        Vector3 maxExtents = Vector3.zero;
+        foreach (Vector3 v in mesh.vertices) {
+            for (int i = 0; i < 3; i++) {
+                minExtents[i] = Mathf.Min(minExtents[i], v[i]);
+                maxExtents[i] = Mathf.Max(maxExtents[i], v[i]);
+            }
+        }
+        compute.SetVector("minExtents", minExtents - Vector3.one*padding);
+        compute.SetVector("maxExtents", maxExtents + Vector3.one*padding);
 
         // Compute the SDF.
         compute.Dispatch(kernel, pixelArray.Length / 256 + 1, 1, 1);

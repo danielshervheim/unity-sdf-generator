@@ -12,7 +12,7 @@ struct Triangle {
 RWStructuredBuffer<float4> pixelBuffer;
 int pixelBufferSize;
 int textureSize;
-float totalUnitsInTexture;
+float3 minExtents, maxExtents;
 
 RWStructuredBuffer<Triangle> triangleBuffer;
 int triangleBufferSize;
@@ -28,8 +28,32 @@ float3 TriangleNormal(uint triangleId) {
 }
 
 
+float3 Remap(float3 v, float3 fromMin, float3 fromMax, float3 toMin, float3 toMax)
+{
+	return (v-fromMin)/(fromMax-fromMin)*(toMax-toMin)+toMin;
+}
+
+
 
 /* Returns the position (relative to the triangle buffer) of the voxel id. */
+float3 PositionFromVoxelId(uint3 id) {
+	float3 ones = float3(1,1,1);
+	return Remap((float3)id + ones*0.5, 0, ones*textureSize, ones*minExtents, ones*maxExtents);
+	/*
+	// Center within voxels.
+	float3 pos = (float3)id + float3(0.5, 0.5, 0.5);
+
+	// Normalize into 0...1 range.
+	pos /= (float)textureSize;
+
+	// Remap to mesh extents.
+	pos *= (maxExtents - minExtents);
+	pos += minExtents;
+
+	return pos;
+	*/
+}
+/*
 float3 PositionFromVoxelId(uint3 id) {
 	float3 pos = (float3)id;  // 0:textureSize-1
 	pos = pos / ((float)textureSize - 1.0);  // 0:1
@@ -37,6 +61,7 @@ float3 PositionFromVoxelId(uint3 id) {
 	pos = pos - (totalUnitsInTexture / 2.0);  // -meshExtent:+meshExtent
 	return pos;
 }
+*/
 
 
 
