@@ -1,0 +1,23 @@
+{
+  "author": {
+    "name" : "Daniel Shervheim",
+    "email" : "danielshervheim@gmail.com",
+    "url" : "https://www.danielshervheim.com/"
+  },
+  "description": "A tool to generate volumetric signed distance fields from Mesh objects.",
+  "displayName": "Signed Distance Field Generator",
+  "keywords": [
+    "unity",
+    "utilities",
+    "extensions",
+    "sdf",
+    "signed distance field",
+    "volumetric"
+  ],
+  "license": "BSD-3-Clause",
+  "name": "com.dss.sdf-generator",
+  "repository": "github:danielshervheim/Signed-Distance-Field-Generator",
+  "unity": "2019.1",
+  "version": "1.0.1",
+  "hideInEditor": false
+}
