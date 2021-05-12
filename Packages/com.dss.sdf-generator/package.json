@@ -18,6 +18,14 @@
   "name": "com.dss.sdf-generator",
   "repository": "github:danielshervheim/Signed-Distance-Field-Generator",
   "unity": "2019.1",
-  "version": "1.0.1",
-  "hideInEditor": false
+  "version": "1.0.2",
+  "hideInEditor": false,
+  "samples": [
+    {
+      "displayName": "Visualization Example",
+      "description": "A small demo scene and shader for visualizing the generated SDF textures.",
+      "path": "Samples~/VisualizationExample"
+ 
+    }
+  ] 
 }

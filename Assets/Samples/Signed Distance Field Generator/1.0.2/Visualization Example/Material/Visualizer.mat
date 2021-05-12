@@ -1,0 +1,39 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 6
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: Visualizer
+  m_Shader: {fileID: 4800000, guid: 51110bc88b3d8472cb16c4494c1dd520, type: 3}
+  m_ShaderKeywords: VERTEX_LIT
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _SDF:
+        m_Texture: {fileID: 11700000, guid: ba94c0a769e4146e48a1a972cbe0a568, type: 2}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Volume:
+        m_Texture: {fileID: 11700000, guid: 0906b400b6edd454a9cd76b419b38a9b, type: 2}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Floats:
+    - _Density: 10
+    - _MaxSteps: 500
+    - _Shade: 0
+    - _StepCount: 64
+    - _VertexLit: 1
+    m_Colors:
+    - _Center: {r: 0, g: 0, b: 0, a: 1}
+    - _MaxExtents: {r: 0.084784, g: 0.16336519, b: 0.065672, a: 1}
+    - _MinExtents: {r: -0.084996, g: -0.004582, b: -0.066039, a: 1}
