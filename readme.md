@@ -2,7 +2,7 @@
 
 A Unity tool to generate signed distance field volumes (as `Texture3D` assets) from meshes.
 
-![demo](https://imgur.com/nHyQgX9.gif)
+![demo](img/nHyQgX9.gif)
 
 ## How To Install
 
